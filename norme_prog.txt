@@ -1,0 +1,23 @@
+Nomenclature:
+	Constantes:
+		toujours en majuscules
+		barre en bas entre chaque mots
+		
+	Variables:
+		toujours en minuscules
+		barre en bas entre chqque mots
+
+	Fonctions:
+		première lettre de chaque mot en majuscule
+		barre en bas entre chaque mots
+
+Fonctionnalité:
+	Fonction:
+		gestion d'entrées/sorties
+		return un message d'erreur
+		retourne toujours une valeur
+		une seule tâche par fonction
+	
+	Erreur:
+		tableau contenant des codes d'erreur
+		fonction a appeler de n'importe ou contenant un string

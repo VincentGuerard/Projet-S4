@@ -34,7 +34,7 @@ int G_flag_spasm = 0;
 int Read (int analog_emg)
 {
     int digital_emg = 0;
-    ADC_Init()
+    ADC_Init();
     digital_emg = ADC_AnalogRead(24);
     return digital_emg;
 }

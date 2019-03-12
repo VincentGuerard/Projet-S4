@@ -28,8 +28,8 @@
 const int PERIOD_SEND = 100;
 const int CLK = 100;
 const int PERIOD_SAMPLING = 5;
-const int MEAN_SIZE = 10000;   // grosseur du tableau de moyenne
-const int OFFSET_ADC = 512;
+//const int MEAN_SIZE = 10000;   // grosseur du tableau de moyenne
+const int OFFSET_ADC = 0x200;
 // ------------------------------------------------------------------------------
 
 
@@ -41,18 +41,20 @@ char G_error = 0;
 int G_flag_evo = 0;
 int G_flag_spasm = 0;
 
-int G_error_buffer[255] = 0;
+int G_error_buffer[10] = {0};
 int G_error_index = 0;
 
 int G_intensity_size = 100; // Le nombre de chiffre a avoir avant d'en faire la moyenne
 int G_intensity_index = 0;   // Ou on se trouve dans le tableau moyenne
-int G_intensity_buffer[MEAN_SIZE] = 0; // grosseur de 10000 a la base
+int G_intensity_buffer[100] = {0}; // grosseur de 10000 a la base
 
 int G_Save_flash_evo_index = 0x00000000;
-int G_Save_flash_evo_buffer[1] = 0;
+int G_Save_flash_evo_buffer[1] = {0};
 
 int G_Save_flash_spasm_index = 0xFFFFFFFF;
-int G_Save_flash_spasm_buffer[1] = 0;
+int G_Save_flash_spasm_buffer[1] = {0};
+
+int G_intensity = 0;
 
 static volatile int G_flag_1s = 0;
 static volatile int G_flag_05ms = 0;
@@ -82,7 +84,7 @@ void Error_Call (int error_number)
     
     G_error_index ++;
     
-    if (G_error_index >= 255)
+    if (G_error_index >= 10)
     {
         G_error_index = 0;
     }
@@ -116,6 +118,7 @@ unsigned int Read (int analog_emg)
 int Rectifier (int digital_emg)
 {
     int emg_rect = 0;
+    emg_rect = digital_emg;
     
     if (digital_emg > 1023)    // entr� trop grande
     {
@@ -145,7 +148,6 @@ int Rectifier (int digital_emg)
  */
 int Intensity_Value (int emg_rect)
 {
-    int intensity = 0;
     int add_mean = 0;
     
     if (emg_rect < 0)   // valeur entr� est negative
@@ -158,7 +160,7 @@ int Intensity_Value (int emg_rect)
         G_intensity_buffer[G_intensity_index] = emg_rect;
         G_intensity_index ++;
         
-        return 0;
+        return G_intensity;
     }
     else if (G_intensity_index >= G_intensity_size) // Quand on atteint le nombre de chiffre voulu, on fait la moyenne
     {
@@ -169,24 +171,22 @@ int Intensity_Value (int emg_rect)
         }
         
         G_intensity_index = 0;
-        
-        intensity = add_mean / G_intensity_size;
+        add_mean -= 0xA0000000;
+        G_intensity = add_mean / G_intensity_size;
         
         if (G_flag_evo == 1)
         {
-            G_Save_flash_evo_buffer[0] = intensity;
+            G_Save_flash_evo_buffer[0] = G_intensity;
             Save_Evo(G_Save_flash_evo_buffer);
         }
     
         if (G_flag_spasm == 1)
         {
-            G_Save_flash_spasm_buffer[0] = intensity;
+            G_Save_flash_spasm_buffer[0] = G_intensity;
             Save_Spasm(G_Save_flash_evo_buffer);
         }
-
-        Display_Intensity_LCD(intensity, CLK);
         
-        return intensity;
+        return G_intensity;
     }
 }
 
@@ -197,8 +197,8 @@ int Intensity_Value (int emg_rect)
  */
 void Save_Evo (int* intensity)
 {
-    SPIFLASH_ProgramPage(G_Save_flash_evo_index, intensity, 1);
-    G_Save_flash_evo_index += 0x00000001;
+    //SPIFLASH_ProgramPage(G_Save_flash_evo_index, intensity, 1);
+    //G_Save_flash_evo_index += 0x00000001;
 }
 
 /* Entré: L'intensité moyenne calculé sur 1 seconde
@@ -207,8 +207,8 @@ void Save_Evo (int* intensity)
  */
 void Save_Spasm (int* intensity)
 {
-    SPIFLASH_ProgramPage(G_Save_flash_spasm_index, intensity, 1);
-    G_Save_flash_spasm_index -= 0x00000001;
+    //SPIFLASH_ProgramPage(G_Save_flash_spasm_index, intensity, 1);
+    //G_Save_flash_spasm_index -= 0x00000001;
 }
 
 /* Entré: 1- Intensité moyenne calculé sur 1 seconde. 2- Le clk pour une 
@@ -217,9 +217,8 @@ void Save_Spasm (int* intensity)
  * Sortie: Rien
  * Fonction: Afficher la moyenne de 1 seconde de données sur le LCD
  */
-void Display_Intensity_LCD (int intensity, int clk, int period_send)
+void Display_Intensity_LCD (int intensity)
 {
-    LCD_DisplayClear();
     
 }
 
@@ -319,8 +318,8 @@ void __ISR(_TIMER_1_VECTOR, IPL2SOFT) Timer1Handler(void)
 
 void Init()
 {
-    SPIFLASH_Init();
-    UART_Init();
+    //SPIFLASH_Init();
+    //UART_Init(9600);
     LCD_Init();
     ADC_Init();
     initialize_01ms_interrupt();
@@ -346,18 +345,20 @@ int main()
         {
             G_flag_1s = 0;
             LCD_DisplayClear();
-            DelayAprox10Us(1000);
+            DelayAprox10Us(100);
             sprintf(data_affichage, "ADC: %d", lecture_adc);
             LCD_WriteStringAtPos(data_affichage, 0, 0);
+            sprintf(data_affichage, "Intensity: %d", G_intensity);
+            LCD_WriteStringAtPos(data_affichage, 1, 0);
         }
         // Frequence d'echantillonnage
         if(G_flag_05ms == 1)
         {
             G_flag_05ms = 0;
             lecture_adc = Read(0);
-        }
-    }
-    
+            G_intensity = Intensity_Value(Rectifier(lecture_adc));
+        } 
+    }      
 /* 1- Setup ADC et autre
  * 2- while(1)
  * 3- read adc

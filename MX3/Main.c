@@ -1,28 +1,34 @@
-#include "adc.h"
-#include "lcd.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <xc.h>
 #include "uart.h"
+#include "timer.h"
+#include "adc.h"
+#include "lcd.h"
+
+// Define _TMR1 to enable the timer 1 code
+#define _TMR1
+
+// Board clock = 8 MHz
+// Setting T1_INTR_RATE to 10000 means the timer will 
+// fire every: 8Mhz/2*20/8/1/T1_INTR_RATE = 1ms
+// See: Unit 2 - Elements of Real-time Systems / Unit 2 for more information
+#define T1_INTR_RATE 1000
 
 // CONSTANTE -------------------------------------------------------------------
-int PERIOD_SEND = 100;
-int CLK = 100;
+const int PERIOD_SEND = 100;
+const int CLK = 100;
+const int PERIOD_SAMPLING = 5;
 // ------------------------------------------------------------------------------
-
-
-
-
 
 // VARIABLE GLOBAL -------------------------------------------------------------
 char G_error = 0;
 int G_flag_evo = 0;
 int G_flag_spasm = 0;
+static volatile int flag_1s = 0;
+static volatile int flag_05ms = 0;
 // -----------------------------------------------------------------------------
-
-
-
-
 
 // FONCTION --------------------------------------------------------------------
 
@@ -31,11 +37,18 @@ int G_flag_spasm = 0;
  * Fonction: Lire le signal de l'emg et le transofmrer en signal digital grace
  *           à l'ADC.
  */
-int Read (int analog_emg)
+unsigned int Read (int analog_emg)
 {
-    int digital_emg = 0;
-    ADC_Init();
+    unsigned int digital_emg = 0;
     digital_emg = ADC_AnalogRead(24);
+    if(digital_emg > 1023)
+    {
+        digital_emg = 1023;
+    }
+    else if(digital_emg < 0)
+    {
+        digital_emg = 0;
+    }
     return digital_emg;
 }
 
@@ -152,15 +165,67 @@ int Interruption_10ms ()
     return flag_evo;
 }
 
-// -----------------------------------------------------------------------------
+void initialize_01ms_interrupt(void) 
+{ 
+    // Refer to : https://reference.digilentinc.com/_media/learn/courses/unit-2/unit_2.pdf 
+    // for more information
+    INTConfigureSystem(INT_SYSTEM_CONFIG_MULT_VECTOR);
+    INTEnableInterrupts();
+    
+    OpenTimer1( (T1_ON | T1_SOURCE_INT | T1_PS_1_1), (T1_INTR_RATE - 1) ); 
+    mT1SetIntPriority(2);        
+    mT1SetIntSubPriority(0);       
+    mT1IntEnable(1);        
+} 
 
+void __ISR(_TIMER_1_VECTOR, IPL2SOFT) Timer1Handler(void) 
+{	
+    static int count1s = 0;
+    static int count05ms = 0;
+    count1s++;
+    count05ms++;
 
-
-
+    // Count to 10000 0.1ms (1 s)
+    if (count1s >= 10000) {
+        count1s = 0;
+        flag_1s = 1;
+    }
+    if(count05ms >= PERIOD_SAMPLING)
+    {
+        count05ms = 0;
+        flag_05ms = 1;
+    }
+    mT1ClearIntFlag();	// Macro function to clear the interrupt flag
+}
 
 // MAIN ------------------------------------------------------------------------	
 int main()
 {
+    unsigned int lecture_adc;
+    char data_affichage[1024];
+    
+    LCD_Init();
+    ADC_Init();
+    initialize_01ms_interrupt();
+    
+    while(1)
+    {
+        // Affichage ecran LCd a chaque seconde
+        if(flag_1s == 1)
+        {
+            flag_1s = 0;
+            LCD_DisplayClear();
+            DelayAprox10Us(1000);
+            sprintf(data_affichage, "ADC: %d", lecture_adc);
+            LCD_WriteStringAtPos(data_affichage, 0, 0);
+        }
+        // Frequence d'echantillonnage
+        if(flag_05ms == 1)
+        {
+            flag_05ms = 0;
+            lecture_adc = Read(0);
+        }
+    }
 /* 1- Setup ADC et autre
  * 2- while(1)
  * 3- read adc

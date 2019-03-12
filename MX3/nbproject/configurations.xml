@@ -9,6 +9,9 @@
       <itemPath>spiflash.h</itemPath>
       <itemPath>uart.h</itemPath>
       <itemPath>utils.h</itemPath>
+      <itemPath>timer.h</itemPath>
+      <itemPath>config.h</itemPath>
+      <itemPath>hardware.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -23,6 +26,8 @@
       <itemPath>spiflash.c</itemPath>
       <itemPath>uart.c</itemPath>
       <itemPath>utils.c</itemPath>
+      <itemPath>config_bits.c</itemPath>
+      <itemPath>PICmx370.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -44,7 +49,7 @@
         <platformTool>PK3OBPlatformTool</platformTool>
         <languageToolchain>XC32</languageToolchain>
         <languageToolchainVersion>2.15</languageToolchainVersion>
-        <platform>2</platform>
+        <platform>3</platform>
       </toolsSet>
       <packs>
         <pack name="PIC32MX_DFP" vendor="Microchip" version="1.0.25"/>
@@ -202,6 +207,9 @@
         <property key="save-temps" value="false"/>
         <property key="wpo-lto" value="false"/>
       </C32Global>
+      <PK3OBPlatformTool>
+        <property key="firmware.download.all" value="false"/>
+      </PK3OBPlatformTool>
     </conf>
   </confs>
 </configurationDescriptor>

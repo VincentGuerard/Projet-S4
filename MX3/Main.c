@@ -31,7 +31,6 @@ static volatile int flag_05ms = 0;
 // -----------------------------------------------------------------------------
 
 // FONCTION --------------------------------------------------------------------
-
 /* Entré: Le signal analogique du EMG
  * Sortie: Le signal transformé (maintenant digital) de l'EMG
  * Fonction: Lire le signal de l'emg et le transofmrer en signal digital grace
@@ -165,6 +164,53 @@ int Interruption_10ms ()
     return flag_evo;
 }
 
+/* 0 = Red
+ * 1 = Green
+ * 2 = Orange
+ */
+void Set_Led_Color(int color)
+{
+    union col
+    {
+        struct rgb
+        {
+            char b;
+            char g;
+            char r;
+            char spare;
+        } rgb_val;
+        unsigned int color_int;
+    }union_color;
+
+    switch(color)
+    {
+        // Red
+        case 0:
+            union_color.rgb_val.r = 0xFF;
+            union_color.rgb_val.g = 0x00;
+            union_color.rgb_val.b = 0x00;
+            break;
+        // Green
+        case 1:
+            union_color.rgb_val.r = 0x00;
+            union_color.rgb_val.g = 0xFF;
+            union_color.rgb_val.b = 0x00;
+            break;
+        // Orange
+        case 2:
+            union_color.rgb_val.r = 0xFF;
+            union_color.rgb_val.g = 0x15;
+            union_color.rgb_val.b = 0x00;                
+            break;
+        default:
+            union_color.rgb_val.r = 0xFF;
+            union_color.rgb_val.g = 0x00;
+            union_color.rgb_val.b = 0x00;
+            break;            
+    }
+    RGBLED_SetValueGrouped(union_color.color_int);
+}
+
 void initialize_01ms_interrupt(void) 
 { 
     // Refer to : https://reference.digilentinc.com/_media/learn/courses/unit-2/unit_2.pdf 
@@ -206,6 +252,7 @@ int main()
     
     LCD_Init();
     ADC_Init();
+    RGBLED_Init();
     initialize_01ms_interrupt();
     
     while(1)

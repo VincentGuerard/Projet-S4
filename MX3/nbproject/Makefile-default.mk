@@ -57,17 +57,17 @@ OBJECTDIR=build/${CND_CONF}/${IMAGE_TYPE}
 DISTDIR=dist/${CND_CONF}/${IMAGE_TYPE}
 
 # Source Files Quoted if spaced
-SOURCEFILES_QUOTED_IF_SPACED=adc.c Main.c lcd.c spiflash.c uart.c utils.c config_bits.c PICmx370.c
+SOURCEFILES_QUOTED_IF_SPACED=adc.c Main.c lcd.c spiflash.c uart.c utils.c config_bits.c PICmx370.c rgbled.c
 
 # Object Files Quoted if spaced
-OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/adc.o ${OBJECTDIR}/Main.o ${OBJECTDIR}/lcd.o ${OBJECTDIR}/spiflash.o ${OBJECTDIR}/uart.o ${OBJECTDIR}/utils.o ${OBJECTDIR}/config_bits.o ${OBJECTDIR}/PICmx370.o
-POSSIBLE_DEPFILES=${OBJECTDIR}/adc.o.d ${OBJECTDIR}/Main.o.d ${OBJECTDIR}/lcd.o.d ${OBJECTDIR}/spiflash.o.d ${OBJECTDIR}/uart.o.d ${OBJECTDIR}/utils.o.d ${OBJECTDIR}/config_bits.o.d ${OBJECTDIR}/PICmx370.o.d
+OBJECTFILES_QUOTED_IF_SPACED=${OBJECTDIR}/adc.o ${OBJECTDIR}/Main.o ${OBJECTDIR}/lcd.o ${OBJECTDIR}/spiflash.o ${OBJECTDIR}/uart.o ${OBJECTDIR}/utils.o ${OBJECTDIR}/config_bits.o ${OBJECTDIR}/PICmx370.o ${OBJECTDIR}/rgbled.o
+POSSIBLE_DEPFILES=${OBJECTDIR}/adc.o.d ${OBJECTDIR}/Main.o.d ${OBJECTDIR}/lcd.o.d ${OBJECTDIR}/spiflash.o.d ${OBJECTDIR}/uart.o.d ${OBJECTDIR}/utils.o.d ${OBJECTDIR}/config_bits.o.d ${OBJECTDIR}/PICmx370.o.d ${OBJECTDIR}/rgbled.o.d
 
 # Object Files
-OBJECTFILES=${OBJECTDIR}/adc.o ${OBJECTDIR}/Main.o ${OBJECTDIR}/lcd.o ${OBJECTDIR}/spiflash.o ${OBJECTDIR}/uart.o ${OBJECTDIR}/utils.o ${OBJECTDIR}/config_bits.o ${OBJECTDIR}/PICmx370.o
+OBJECTFILES=${OBJECTDIR}/adc.o ${OBJECTDIR}/Main.o ${OBJECTDIR}/lcd.o ${OBJECTDIR}/spiflash.o ${OBJECTDIR}/uart.o ${OBJECTDIR}/utils.o ${OBJECTDIR}/config_bits.o ${OBJECTDIR}/PICmx370.o ${OBJECTDIR}/rgbled.o
 
 # Source Files
-SOURCEFILES=adc.c Main.c lcd.c spiflash.c uart.c utils.c config_bits.c PICmx370.c
+SOURCEFILES=adc.c Main.c lcd.c spiflash.c uart.c utils.c config_bits.c PICmx370.c rgbled.c
 
 
 CFLAGS=
@@ -154,6 +154,12 @@ ${OBJECTDIR}/PICmx370.o: PICmx370.c  nbproject/Makefile-${CND_CONF}.mk
 	@${RM} ${OBJECTDIR}/PICmx370.o 
 	@${FIXDEPS} "${OBJECTDIR}/PICmx370.o.d" $(SILENT) -rsi ${MP_CC_DIR}../  -c ${MP_CC}  $(MP_EXTRA_CC_PRE) -g -D__DEBUG -D__MPLAB_DEBUGGER_PK3=1  -fframe-base-loclist  -x c -c -mprocessor=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/PICmx370.o.d" -o ${OBJECTDIR}/PICmx370.o PICmx370.c    -DXPRJ_default=$(CND_CONF)  -legacy-libc  $(COMPARISON_BUILD) 
 	
+${OBJECTDIR}/rgbled.o: rgbled.c  nbproject/Makefile-${CND_CONF}.mk
+	@${MKDIR} "${OBJECTDIR}" 
+	@${RM} ${OBJECTDIR}/rgbled.o.d 
+	@${RM} ${OBJECTDIR}/rgbled.o 
+	@${FIXDEPS} "${OBJECTDIR}/rgbled.o.d" $(SILENT) -rsi ${MP_CC_DIR}../  -c ${MP_CC}  $(MP_EXTRA_CC_PRE) -g -D__DEBUG -D__MPLAB_DEBUGGER_PK3=1  -fframe-base-loclist  -x c -c -mprocessor=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/rgbled.o.d" -o ${OBJECTDIR}/rgbled.o rgbled.c    -DXPRJ_default=$(CND_CONF)  -legacy-libc  $(COMPARISON_BUILD) 
+	
 else
 ${OBJECTDIR}/adc.o: adc.c  nbproject/Makefile-${CND_CONF}.mk
 	@${MKDIR} "${OBJECTDIR}" 
@@ -202,6 +208,12 @@ ${OBJECTDIR}/PICmx370.o: PICmx370.c  nbproject/Makefile-${CND_CONF}.mk
 	@${RM} ${OBJECTDIR}/PICmx370.o.d 
 	@${RM} ${OBJECTDIR}/PICmx370.o 
 	@${FIXDEPS} "${OBJECTDIR}/PICmx370.o.d" $(SILENT) -rsi ${MP_CC_DIR}../  -c ${MP_CC}  $(MP_EXTRA_CC_PRE)  -g -x c -c -mprocessor=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/PICmx370.o.d" -o ${OBJECTDIR}/PICmx370.o PICmx370.c    -DXPRJ_default=$(CND_CONF)  -legacy-libc  $(COMPARISON_BUILD) 
+	
+${OBJECTDIR}/rgbled.o: rgbled.c  nbproject/Makefile-${CND_CONF}.mk
+	@${MKDIR} "${OBJECTDIR}" 
+	@${RM} ${OBJECTDIR}/rgbled.o.d 
+	@${RM} ${OBJECTDIR}/rgbled.o 
+	@${FIXDEPS} "${OBJECTDIR}/rgbled.o.d" $(SILENT) -rsi ${MP_CC_DIR}../  -c ${MP_CC}  $(MP_EXTRA_CC_PRE)  -g -x c -c -mprocessor=$(MP_PROCESSOR_OPTION)  -MMD -MF "${OBJECTDIR}/rgbled.o.d" -o ${OBJECTDIR}/rgbled.o rgbled.c    -DXPRJ_default=$(CND_CONF)  -legacy-libc  $(COMPARISON_BUILD) 
 	
 endif
 

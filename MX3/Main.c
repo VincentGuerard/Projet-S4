@@ -7,6 +7,10 @@
 #include "adc.h"
 #include "lcd.h"
 
+
+
+
+
 // Define _TMR1 to enable the timer 1 code
 #define _TMR1
 
@@ -16,21 +20,76 @@
 // See: Unit 2 - Elements of Real-time Systems / Unit 2 for more information
 #define T1_INTR_RATE 1000
 
+
+
+
+
 // CONSTANTE -------------------------------------------------------------------
 const int PERIOD_SEND = 100;
 const int CLK = 100;
 const int PERIOD_SAMPLING = 5;
+//const int MEAN_SIZE = 10000;   // grosseur du tableau de moyenne
+const int OFFSET_ADC = 0x200;
 // ------------------------------------------------------------------------------
+
+
+
+
 
 // VARIABLE GLOBAL -------------------------------------------------------------
 char G_error = 0;
 int G_flag_evo = 0;
 int G_flag_spasm = 0;
-static volatile int flag_1s = 0;
-static volatile int flag_05ms = 0;
+
+int G_error_buffer[10] = {0};
+int G_error_index = 0;
+
+int G_intensity_size = 100; // Le nombre de chiffre a avoir avant d'en faire la moyenne
+int G_intensity_index = 0;   // Ou on se trouve dans le tableau moyenne
+int G_intensity_buffer[100] = {0}; // grosseur de 10000 a la base
+
+int G_Save_flash_evo_index = 0x00000000;
+int G_Save_flash_evo_buffer[1] = {0};
+
+int G_Save_flash_spasm_index = 0xFFFFFFFF;
+int G_Save_flash_spasm_buffer[1] = {0};
+
+int G_intensity = 0;
+
+static volatile int G_flag_1s = 0;
+static volatile int G_flag_05ms = 0;
 // -----------------------------------------------------------------------------
 
+
+
+
+
 // FONCTION --------------------------------------------------------------------
+
+/* Entré: un num�ro d'erreur
+ * Sortie: rien
+ * Fonction: envoie au LCD les message d'erreur
+ */
+void Error_Call (int error_number)
+{
+    G_error_buffer[G_error_index] = error_number;
+    if (G_error_buffer[G_error_index] == 1)
+    {
+        //entr� plus grand que pr�vu
+    }
+    else if (G_error_buffer[G_error_index] == 2)
+    {
+        //entr� plus petite que pr�vu
+    }
+    
+    G_error_index ++;
+    
+    if (G_error_index >= 10)
+    {
+        G_error_index = 0;
+    }
+}
+
 /* Entré: Le signal analogique du EMG
  * Sortie: Le signal transformé (maintenant digital) de l'EMG
  * Fonction: Lire le signal de l'emg et le transofmrer en signal digital grace
@@ -51,7 +110,7 @@ unsigned int Read (int analog_emg)
     return digital_emg;
 }
 
-/* Entré: Le signal digital de l'emg
+/* Entré: Le signal digital de l'emg. De 0 a 1024, avec offset de 512
  * Sortie: Le signal digital redresser pour n'avoir que des positifs
  * Fonction: Redresser le signal digital pour ne pas avoir de négatif. On
  *           regarde l'intensité donc le négatif ou positif ne compte pas.
@@ -59,8 +118,26 @@ unsigned int Read (int analog_emg)
 int Rectifier (int digital_emg)
 {
     int emg_rect = 0;
-    emg_rect = abs(digital_emg);
-    return emg_rect;
+    emg_rect = digital_emg;
+    
+    if (digital_emg > 1023)    // entr� trop grande
+    {
+        Error_Call(1);
+        G_error = 1;
+        return 0;
+    }
+    else if (digital_emg < 0) // entr� trop petite
+    {
+        Error_Call(2);
+        G_error = 1;
+        return 0;
+    }
+    else
+    {
+        emg_rect = emg_rect - OFFSET_ADC;
+        emg_rect = abs(emg_rect);
+        return emg_rect;
+    }
 }
 
 /* Entré: 1- La valeur redresser du emg. 2- Period de temps avant d'envoyer les 
@@ -69,23 +146,48 @@ int Rectifier (int digital_emg)
  * Fonction: Prendre les données redressé, les placer dans un buffer et envoyer 
  *           le buffer dans une fonction de calcule de moyenne apres X nombre de donnée recu
  */
-int Intensity_Value (int emg_rect, int send_period)
+int Intensity_Value (int emg_rect)
 {
-    int intensity = 0;
+    int add_mean = 0;
     
-    if (G_flag_evo == 1)
+    if (emg_rect < 0)   // valeur entr� est negative
     {
-        Save_Evo(intensity);
+        Error_Call(2);
+        return 0;
     }
-    
-    if (G_flag_spasm == 1)
+    else if (G_intensity_index < G_intensity_size)   // tant qu'on a pas atteint le nombre de chiffre voulue, on place dans le buffer
     {
-        Save_Spasm(intensity);
+        G_intensity_buffer[G_intensity_index] = emg_rect;
+        G_intensity_index ++;
+        
+        return G_intensity;
     }
+    else if (G_intensity_index >= G_intensity_size) // Quand on atteint le nombre de chiffre voulu, on fait la moyenne
+    {
+        while (G_intensity_index >= 0)
+        {
+            add_mean += G_intensity_buffer[G_intensity_index];
+            G_intensity_index --;
+        }
+        
+        G_intensity_index = 0;
+        add_mean -= 0xA0000000;
+        G_intensity = add_mean / G_intensity_size;
+        
+        if (G_flag_evo == 1)
+        {
+            G_Save_flash_evo_buffer[0] = G_intensity;
+            Save_Evo(G_Save_flash_evo_buffer);
+        }
     
-    Display_Intesity_LCD(intensity, CLK, PERIOD_SEND);
-    
-    return intensity;
+        if (G_flag_spasm == 1)
+        {
+            G_Save_flash_spasm_buffer[0] = G_intensity;
+            Save_Spasm(G_Save_flash_evo_buffer);
+        }
+        
+        return G_intensity;
+    }
 }
 
 /* Entré: L'intensité moyenne calculé sur 1 seconde
@@ -93,18 +195,20 @@ int Intensity_Value (int emg_rect, int send_period)
  * Fonction: Sauvegarder dans la flash les valeurs que l'utilisateur veut 
  *           sauvegarder
  */
-void Save_Evo (int intensity)
+void Save_Evo (int* intensity)
 {
-    
+    //SPIFLASH_ProgramPage(G_Save_flash_evo_index, intensity, 1);
+    //G_Save_flash_evo_index += 0x00000001;
 }
 
 /* Entré: L'intensité moyenne calculé sur 1 seconde
  * Sortie: Rien
  * Fonction: Sauvegarder dans la flash les valeurs de la crise de l'utilisateur
  */
-void Save_Spasm (int intensity)
+void Save_Spasm (int* intensity)
 {
-    
+    //SPIFLASH_ProgramPage(G_Save_flash_spasm_index, intensity, 1);
+    //G_Save_flash_spasm_index -= 0x00000001;
 }
 
 /* Entré: 1- Intensité moyenne calculé sur 1 seconde. 2- Le clk pour une 
@@ -113,7 +217,7 @@ void Save_Spasm (int intensity)
  * Sortie: Rien
  * Fonction: Afficher la moyenne de 1 seconde de données sur le LCD
  */
-void Display_Intesity_LCD (int intensity, int clk, int period_send)
+void Display_Intensity_LCD (int intensity)
 {
     
 }
@@ -211,6 +315,10 @@ void Set_Led_Color(int color)
     RGBLED_SetValueGrouped(union_color.color_int);
 }
 
+/* Entré: Rien
+ * Sortie: rien
+ * Fonction: init de la fonction d'interrupt
+ */
 void initialize_01ms_interrupt(void) 
 { 
     // Refer to : https://reference.digilentinc.com/_media/learn/courses/unit-2/unit_2.pdf 
@@ -224,6 +332,10 @@ void initialize_01ms_interrupt(void)
     mT1IntEnable(1);        
 } 
 
+/* Entré: Rien
+ * Sortie: ???
+ * Fonction: interrupt chaque 0.1 ms
+ */
 void __ISR(_TIMER_1_VECTOR, IPL2SOFT) Timer1Handler(void) 
 {	
     static int count1s = 0;
@@ -234,45 +346,68 @@ void __ISR(_TIMER_1_VECTOR, IPL2SOFT) Timer1Handler(void)
     // Count to 10000 0.1ms (1 s)
     if (count1s >= 10000) {
         count1s = 0;
-        flag_1s = 1;
+        G_flag_1s = 1;
     }
     if(count05ms >= PERIOD_SAMPLING)
     {
         count05ms = 0;
-        flag_05ms = 1;
+        G_flag_05ms = 1;
     }
     mT1ClearIntFlag();	// Macro function to clear the interrupt flag
 }
+// -----------------------------------------------------------------------------
 
-// MAIN ------------------------------------------------------------------------	
-int main()
+
+
+
+
+// INITIALISATION --------------------------------------------------------------
+
+void Init()
 {
-    unsigned int lecture_adc;
-    char data_affichage[1024];
-    
+    //SPIFLASH_Init();
+    //UART_Init(9600);
     LCD_Init();
     ADC_Init();
     RGBLED_Init();
     initialize_01ms_interrupt();
+}
+
+// -----------------------------------------------------------------------------
+
+
+
+
+// MAIN ------------------------------------------------------------------------	
+int main()
+{
+    Init();
+    
+    unsigned int lecture_adc;
+    char data_affichage[1024];
     
     while(1)
     {
         // Affichage ecran LCd a chaque seconde
-        if(flag_1s == 1)
+        if(G_flag_1s == 1)
         {
-            flag_1s = 0;
+            G_flag_1s = 0;
             LCD_DisplayClear();
-            DelayAprox10Us(1000);
+            DelayAprox10Us(100);
             sprintf(data_affichage, "ADC: %d", lecture_adc);
             LCD_WriteStringAtPos(data_affichage, 0, 0);
+            sprintf(data_affichage, "Intensity: %d", G_intensity);
+            LCD_WriteStringAtPos(data_affichage, 1, 0);
+            Set_Led_Color(2);
         }
         // Frequence d'echantillonnage
-        if(flag_05ms == 1)
+        if(G_flag_05ms == 1)
         {
-            flag_05ms = 0;
+            G_flag_05ms = 0;
             lecture_adc = Read(0);
-        }
-    }
+            G_intensity = Intensity_Value(Rectifier(lecture_adc));
+        } 
+    }      
 /* 1- Setup ADC et autre
  * 2- while(1)
  * 3- read adc

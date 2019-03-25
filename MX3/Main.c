@@ -7,10 +7,6 @@
 #include "adc.h"
 #include "lcd.h"
 
-
-
-
-
 // Define _TMR1 to enable the timer 1 code
 #define _TMR1
 
@@ -20,12 +16,9 @@
 // See: Unit 2 - Elements of Real-time Systems / Unit 2 for more information
 #define T1_INTR_RATE 1000
 
-
-
-
-
 // CONSTANTE -------------------------------------------------------------------
 const int PERIOD_SEND = 100;
+const int LENGTH = 100;
 const int CLK = 100;
 const int PERIOD_SAMPLING = 5;
 //const int MEAN_SIZE = 10000;   // grosseur du tableau de moyenne
@@ -43,6 +36,9 @@ int G_flag_spasm = 0;
 
 int G_error_buffer[10] = {0};
 int G_error_index = 0;
+
+int G_sum_steps = 0;
+int G_read_table_index = 0;
 
 int G_intensity_size = 100; // Le nombre de chiffre a avoir avant d'en faire la moyenne
 int G_intensity_index = 0;   // Ou on se trouve dans le tableau moyenne
@@ -99,6 +95,7 @@ unsigned int Read (int analog_emg)
 {
     unsigned int digital_emg = 0;
     digital_emg = ADC_AnalogRead(24);
+    
     if(digital_emg > 1023)
     {
         digital_emg = 1023;
@@ -134,9 +131,55 @@ int Rectifier (int digital_emg)
     }
     else
     {
-        emg_rect = emg_rect - OFFSET_ADC;
-        emg_rect = abs(emg_rect);
+        emg_rect = abs(emg_rect - OFFSET_ADC);
         return emg_rect;
+    }
+}
+
+int Intensity_Test (int emg_rect)
+{
+    int read_sum = 0;
+    int read_table[LENGTH];
+    
+    if (G_sum_steps == 0)
+    {
+        G_read_table_index = 0;
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        G_sum_steps = 1;
+    }
+    else if (G_sum_steps == 1)
+    {
+        G_read_table_index ++;
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        if (G_read_table_index == LENGTH)
+        {
+            G_sum_steps = 2;
+            // Envoie au python et a Zybo
+            Display_Intensity_LCD(read_sum);
+        }
+    }
+    else if (G_sum_steps == 2)
+    {
+        G_read_table_index = 0;
+        read_sum -= read_table[G_read_table_index];
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        G_sum_steps = 3;
+    }
+    else if (G_sum_steps == 3)
+    {
+        G_read_table_index ++;
+        read_sum -= read_table[G_read_table_index];
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        if (G_read_table_index == LENGTH)
+        {
+            G_sum_steps = 2;
+            // Envoie au python et a Zybo
+            Display_Intensity_LCD(read_sum);
+        }
     }
 }
 
@@ -219,7 +262,9 @@ void Save_Spasm (int* intensity)
  */
 void Display_Intensity_LCD (int intensity)
 {
-    
+    char data_affichage[1024];
+    sprintf(data_affichage, "Somme de 100: %d", intensity);
+    LCD_WriteStringAtPos(data_affichage, 1, 0);
 }
 
 /* Entré: Le signal redresser de l'emg
@@ -315,7 +360,6 @@ void __ISR(_TIMER_1_VECTOR, IPL2SOFT) Timer1Handler(void)
 
 
 // INITIALISATION --------------------------------------------------------------
-
 void Init()
 {
     //SPIFLASH_Init();
@@ -324,7 +368,6 @@ void Init()
     ADC_Init();
     initialize_01ms_interrupt();
 }
-
 // -----------------------------------------------------------------------------
 
 
@@ -356,7 +399,8 @@ int main()
         {
             G_flag_05ms = 0;
             lecture_adc = Read(0);
-            G_intensity = Intensity_Value(Rectifier(lecture_adc));
+            Intensity_Test(lecture_adc);
+            //G_intensity = Intensity_Value(Rectifier(lecture_adc));
         } 
     }      
 /* 1- Setup ADC et autre

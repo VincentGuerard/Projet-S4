@@ -14,6 +14,7 @@
             <make-dep-projects/>
             <sourceRootList>
                 <sourceRootElem>.</sourceRootElem>
+                <sourceRootElem>../../../../../OneDrive/Bureau/MX3_BSL.X</sourceRootElem>
             </sourceRootList>
             <confList>
                 <confElem>

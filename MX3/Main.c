@@ -23,6 +23,10 @@ const int CLK = 100;
 const int PERIOD_SAMPLING = 5;
 //const int MEAN_SIZE = 10000;   // grosseur du tableau de moyenne
 const int OFFSET_ADC = 0x200;
+const int RED = 0;
+const int GREEN = 1;
+const int ORANGE = 2;
+const int IDDLE = 1000;
 // ------------------------------------------------------------------------------
 
 
@@ -52,6 +56,9 @@ int G_Save_flash_spasm_buffer[1] = {0};
 
 int G_intensity = 0;
 
+int G_read_sum = 0;
+int G_read_table[100] = {0};
+
 static volatile int G_flag_1s = 0;
 static volatile int G_flag_05ms = 0;
 // -----------------------------------------------------------------------------
@@ -61,37 +68,12 @@ static volatile int G_flag_05ms = 0;
 
 
 // FONCTION --------------------------------------------------------------------
-
-/* Entré: un num�ro d'erreur
- * Sortie: rien
- * Fonction: envoie au LCD les message d'erreur
- */
-void Error_Call (int error_number)
-{
-    G_error_buffer[G_error_index] = error_number;
-    if (G_error_buffer[G_error_index] == 1)
-    {
-        //entr� plus grand que pr�vu
-    }
-    else if (G_error_buffer[G_error_index] == 2)
-    {
-        //entr� plus petite que pr�vu
-    }
-    
-    G_error_index ++;
-    
-    if (G_error_index >= 10)
-    {
-        G_error_index = 0;
-    }
-}
-
 /* Entré: Le signal analogique du EMG
  * Sortie: Le signal transformé (maintenant digital) de l'EMG
  * Fonction: Lire le signal de l'emg et le transofmrer en signal digital grace
  *           à l'ADC.
  */
-unsigned int Read (int analog_emg)
+unsigned int Read()
 {
     unsigned int digital_emg = 0;
     digital_emg = ADC_AnalogRead(24);
@@ -114,173 +96,37 @@ unsigned int Read (int analog_emg)
  */
 int Rectifier (int digital_emg)
 {
-    int emg_rect = 0;
-    emg_rect = digital_emg;
-    
-    if (digital_emg > 1023)    // entr� trop grande
-    {
-        Error_Call(1);
-        G_error = 1;
-        return 0;
+    int emg_rect = abs(digital_emg - OFFSET_ADC);
+    return emg_rect;
+}
+
+int Intensity (int emg_rect)
+{
+    G_read_sum -= G_read_table[G_read_table_index];
+    G_read_table[G_read_table_index] = emg_rect;
+    G_read_sum += G_read_table[G_read_table_index];
+    G_read_table_index ++;
+    if (G_read_table_index >= LENGTH){
+        G_read_table_index = 0;
+        // Envoie au python et a Zybo
     }
-    else if (digital_emg < 0) // entr� trop petite
-    {
-        Error_Call(2);
-        G_error = 1;
-        return 0;
-    }
+    if (G_read_sum <= IDDLE)
+        Set_Led_Color(ORANGE);
+    else if (G_read_sum > IDDLE)
+        Set_Led_Color(GREEN);
     else
-    {
-        emg_rect = abs(emg_rect - OFFSET_ADC);
-        return emg_rect;
-    }
+        Set_Led_Color(RED);
 }
 
-int Intensity_Test (int emg_rect)
+void Display_Value_LCD (int value, int state)
 {
-    int read_sum = 0;
-    int read_table[LENGTH];
-    
-    if (G_sum_steps == 0)
-    {
-        G_read_table_index = 0;
-        read_table[G_read_table_index] = emg_rect;
-        read_sum += read_table[G_read_table_index];
-        G_sum_steps = 1;
-    }
-    else if (G_sum_steps == 1)
-    {
-        G_read_table_index ++;
-        read_table[G_read_table_index] = emg_rect;
-        read_sum += read_table[G_read_table_index];
-        if (G_read_table_index == LENGTH)
-        {
-            G_sum_steps = 2;
-            // Envoie au python et a Zybo
-            Display_Intensity_LCD(read_sum);
-        }
-    }
-    else if (G_sum_steps == 2)
-    {
-        G_read_table_index = 0;
-        read_sum -= read_table[G_read_table_index];
-        read_table[G_read_table_index] = emg_rect;
-        read_sum += read_table[G_read_table_index];
-        G_sum_steps = 3;
-    }
-    else if (G_sum_steps == 3)
-    {
-        G_read_table_index ++;
-        read_sum -= read_table[G_read_table_index];
-        read_table[G_read_table_index] = emg_rect;
-        read_sum += read_table[G_read_table_index];
-        if (G_read_table_index == LENGTH)
-        {
-            G_sum_steps = 2;
-            // Envoie au python et a Zybo
-            Display_Intensity_LCD(read_sum);
-        }
-    }
 }
 
-/* Entré: 1- La valeur redresser du emg. 2- Period de temps avant d'envoyer les 
- *        donné du buffer (1 seconde "worth" de données)
- * Sortie: La moyenne de tout les données dans le buffer
- * Fonction: Prendre les données redressé, les placer dans un buffer et envoyer 
- *           le buffer dans une fonction de calcule de moyenne apres X nombre de donnée recu
- */
-int Intensity_Value (int emg_rect)
-{
-    int add_mean = 0;
-    
-    if (emg_rect < 0)   // valeur entr� est negative
-    {
-        Error_Call(2);
-        return 0;
-    }
-    else if (G_intensity_index < G_intensity_size)   // tant qu'on a pas atteint le nombre de chiffre voulue, on place dans le buffer
-    {
-        G_intensity_buffer[G_intensity_index] = emg_rect;
-        G_intensity_index ++;
-        
-        return G_intensity;
-    }
-    else if (G_intensity_index >= G_intensity_size) // Quand on atteint le nombre de chiffre voulu, on fait la moyenne
-    {
-        while (G_intensity_index >= 0)
-        {
-            add_mean += G_intensity_buffer[G_intensity_index];
-            G_intensity_index --;
-        }
-        
-        G_intensity_index = 0;
-        add_mean -= 0xA0000000;
-        G_intensity = add_mean / G_intensity_size;
-        
-        if (G_flag_evo == 1)
-        {
-            G_Save_flash_evo_buffer[0] = G_intensity;
-            Save_Evo(G_Save_flash_evo_buffer);
-        }
-    
-        if (G_flag_spasm == 1)
-        {
-            G_Save_flash_spasm_buffer[0] = G_intensity;
-            Save_Spasm(G_Save_flash_evo_buffer);
-        }
-        
-        return G_intensity;
-    }
-}
-
-/* Entré: L'intensité moyenne calculé sur 1 seconde
- * Sortie: Rien
- * Fonction: Sauvegarder dans la flash les valeurs que l'utilisateur veut 
- *           sauvegarder
- */
-void Save_Evo (int* intensity)
-{
-    //SPIFLASH_ProgramPage(G_Save_flash_evo_index, intensity, 1);
-    //G_Save_flash_evo_index += 0x00000001;
-}
-
-/* Entré: L'intensité moyenne calculé sur 1 seconde
- * Sortie: Rien
- * Fonction: Sauvegarder dans la flash les valeurs de la crise de l'utilisateur
- */
-void Save_Spasm (int* intensity)
-{
-    //SPIFLASH_ProgramPage(G_Save_flash_spasm_index, intensity, 1);
-    //G_Save_flash_spasm_index -= 0x00000001;
-}
-
-/* Entré: 1- Intensité moyenne calculé sur 1 seconde. 2- Le clk pour une 
- *        synchronisation de l'affichage. 3- Le nombre de donnée a afficher 
- *        représentant 1 seconde.
- * Sortie: Rien
- * Fonction: Afficher la moyenne de 1 seconde de données sur le LCD
- */
-void Display_Intensity_LCD (int intensity)
-{
-    char data_affichage[1024];
-    sprintf(data_affichage, "Somme de 100: %d", intensity);
-    LCD_WriteStringAtPos(data_affichage, 1, 0);
-}
-
-/* Entré: Le signal redresser de l'emg
- * Sortie: Rien
- * Fonction: Envoie des valeurs de moyenne a la carte zybo
- */
 void Send_Value_Spasm (int emg_rect)
 {
     
 }
 
-/* Entré: Reception des données envoyer par la zybo
- * Sortie: La valeur du flag qui dit si une crise a lieu
- * Fonction: Lecture des données envoyer par la carte zybo et si une crise 
- *           d'épilepsie est detecter, on retourne un 1. Sinon, on retourne un 0.
- */
 int Receive_Spasm (int comm_zybo)
 {
     int flag_spasm = 0;
@@ -288,29 +134,51 @@ int Receive_Spasm (int comm_zybo)
     return flag_spasm;
 }
 
-/* Entré: 1- Intensité moyenne sur 1 seconde du signal de l'emg. 2- Les valeurs 
- *        du spasm ? 3- Valeur du flag qui indique si une crise a lieux
- * Sortie: Donnée envoyer à l'ordinateur par UART
- * Fonction: Envoyer, à chaque 2 seconde, les valeurs d'intensité calculé et 
- *           d'afficher le message de crise si une crise a lieux
+/* 0 = Red
+ * 1 = Green
+ * 2 = Orange
  */
-int Interruption_2sec (int intensity, int spasm, int flag_spasm)
+void Set_Led_Color(int color)
 {
-    int comm_UART = 0;
-    
-    return comm_UART;
-}
+    union col
+    {
+        struct rgb
+        {
+            char b;
+            char g;
+            char r;
+            char spare;
+        } rgb_val;
+        unsigned int color_int;
+    }union_color;
 
-/* Entré: Rien
- * Sortie: Flag si l'utilisateur veut enregistré ses données
- * Fonction: Si le bouton d'enregistrement est peser, les données sont 
- *           enregistré sur 3 seconde
- */
-int Interruption_10ms ()
-{
-    int flag_evo = 0;
-    
-    return flag_evo;
+    switch(color)
+    {
+        // Red
+        case 0:
+            union_color.rgb_val.r = 0xFF;
+            union_color.rgb_val.g = 0x00;
+            union_color.rgb_val.b = 0x00;
+            break;
+        // Green
+        case 1:
+            union_color.rgb_val.r = 0x00;
+            union_color.rgb_val.g = 0xFF;
+            union_color.rgb_val.b = 0x00;
+            break;
+        // Orange
+        case 2:
+            union_color.rgb_val.r = 0xFF;
+            union_color.rgb_val.g = 0x15;
+            union_color.rgb_val.b = 0x00;                
+            break;
+        default:
+            union_color.rgb_val.r = 0xFF;
+            union_color.rgb_val.g = 0x00;
+            union_color.rgb_val.b = 0x00;
+            break;            
+    }
+    RGBLED_SetValueGrouped(union_color.color_int);
 }
 
 /* Entré: Rien
@@ -350,6 +218,8 @@ void __ISR(_TIMER_1_VECTOR, IPL2SOFT) Timer1Handler(void)
     {
         count05ms = 0;
         G_flag_05ms = 1;
+        /*if (btn_evo == 1)
+            G_flag_evo = 1;*/
     }
     mT1ClearIntFlag();	// Macro function to clear the interrupt flag
 }
@@ -366,6 +236,7 @@ void Init()
     //UART_Init(9600);
     LCD_Init();
     ADC_Init();
+    RGBLED_Init();
     initialize_01ms_interrupt();
 }
 // -----------------------------------------------------------------------------
@@ -377,32 +248,27 @@ void Init()
 int main()
 {
     Init();
-    
-    unsigned int lecture_adc;
     char data_affichage[1024];
+    unsigned int rectified_adc_read;
     
-    while(1)
-    {
-        // Affichage ecran LCd a chaque seconde
-        if(G_flag_1s == 1)
-        {
-            G_flag_1s = 0;
-            LCD_DisplayClear();
-            DelayAprox10Us(100);
-            sprintf(data_affichage, "ADC: %d", lecture_adc);
-            LCD_WriteStringAtPos(data_affichage, 0, 0);
-            sprintf(data_affichage, "Intensity: %d", G_intensity);
-            LCD_WriteStringAtPos(data_affichage, 1, 0);
-        }
-        // Frequence d'echantillonnage
-        if(G_flag_05ms == 1)
-        {
+    while(1){
+        if(G_flag_05ms == 1){
             G_flag_05ms = 0;
-            lecture_adc = Read(0);
-            Intensity_Test(lecture_adc);
-            //G_intensity = Intensity_Value(Rectifier(lecture_adc));
-        } 
-    }      
+            rectified_adc_read = Rectifier(Read());
+            Intensity(rectified_adc_read);
+            if (G_flag_1s == 1){
+                G_flag_1s = 0;
+                LCD_DisplayClear();
+                sprintf(data_affichage, "ADC: %d", rectified_adc_read);
+                LCD_WriteStringAtPos(data_affichage, 0, 0);
+                sprintf(data_affichage, "Somme: %d", G_read_sum);
+                LCD_WriteStringAtPos(data_affichage, 1, 0);
+            }
+        }
+    }
+}
+// -----------------------------------------------------------------------------
+
 /* 1- Setup ADC et autre
  * 2- while(1)
  * 3- read adc
@@ -415,6 +281,138 @@ int main()
  * 10- envoie des information sur le UART. Soit juste des valeurs, soit juste 
  *     une alerte de crise 
  */
-}
-// -----------------------------------------------------------------------------
 
+/* Entré: L'intensité moyenne calculé sur 1 seconde
+ * Sortie: Rien
+ * Fonction: Sauvegarder dans la flash les valeurs que l'utilisateur veut 
+ *           sauvegarder
+ */
+/*int Intensity_Test (int emg_rect)
+{
+
+    
+    if (G_sum_steps == 0)
+    {
+        G_read_table_index = 0;
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        G_sum_steps = 1;
+    }
+    else if (G_sum_steps == 1)
+    {
+        G_read_table_index ++;
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        if (G_read_table_index == LENGTH)
+        {
+            G_sum_steps = 2;
+            // Envoie au python et a Zybo
+            Display_Value_LCD(read_sum, 0);
+        }
+    }
+    else if (G_sum_steps == 2)
+    {
+        G_read_table_index = 0;
+        read_sum -= read_table[G_read_table_index];
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        G_sum_steps = 3;
+    }
+    else if (G_sum_steps == 3)
+    {
+        G_read_table_index ++;
+        read_sum -= read_table[G_read_table_index];
+        read_table[G_read_table_index] = emg_rect;
+        read_sum += read_table[G_read_table_index];
+        if (G_read_table_index == LENGTH)
+        {
+            G_sum_steps = 2;
+            // Envoie au python et a Zybo
+            Display_Value_LCD(read_sum, 0);
+        }
+    }
+}*/
+
+/* Entré: 1- La valeur redresser du emg. 2- Period de temps avant d'envoyer les 
+ *        donné du buffer (1 seconde "worth" de données)
+ * Sortie: La moyenne de tout les données dans le buffer
+ * Fonction: Prendre les données redressé, les placer dans un buffer et envoyer 
+ *           le buffer dans une fonction de calcule de moyenne apres X nombre de donnée recu
+ */
+/*int Intensity_Value (int emg_rect)
+{
+    int add_mean = 0;
+    if (G_intensity_index < G_intensity_size)   // tant qu'on a pas atteint le nombre de chiffre voulue, on place dans le buffer
+    {
+        G_intensity_buffer[G_intensity_index] = emg_rect;
+        G_intensity_index ++;
+        
+        return G_intensity;
+    }
+    else if (G_intensity_index >= G_intensity_size) // Quand on atteint le nombre de chiffre voulu, on fait la moyenne
+    {
+        while (G_intensity_index >= 0)
+        {
+            add_mean += G_intensity_buffer[G_intensity_index];
+            G_intensity_index --;
+        }
+        
+        G_intensity_index = 0;
+        add_mean -= 0xA0000000;
+        G_intensity = add_mean / G_intensity_size;
+        
+        if (G_flag_evo == 1)
+        {
+            G_Save_flash_evo_buffer[0] = G_intensity;
+            Save_Evo(G_Save_flash_evo_buffer);
+        }
+    
+        if (G_flag_spasm == 1)
+        {
+            G_Save_flash_spasm_buffer[0] = G_intensity;
+            Save_Spasm(G_Save_flash_evo_buffer);
+        }
+        
+        return G_intensity;
+    }
+}*/
+
+/* Entré: un num�ro d'erreur
+ * Sortie: rien
+ * Fonction: envoie au LCD les message d'erreur
+ */
+/*void Error_Call (int error_number)
+{
+    G_error_buffer[G_error_index] = error_number;
+    if (G_error_buffer[G_error_index] == 1)
+    {
+        //entr� plus grand que pr�vu
+    }
+    else if (G_error_buffer[G_error_index] == 2)
+    {
+        //entr� plus petite que pr�vu
+    }
+    
+    G_error_index ++;
+    
+    if (G_error_index >= 10)
+    {
+        G_error_index = 0;
+    }
+}*/
+
+/*void Save_Evo (int* intensity)
+{
+    //SPIFLASH_ProgramPage(G_Save_flash_evo_index, intensity, 1);
+    //G_Save_flash_evo_index += 0x00000001;
+}*/
+
+/* Entré: L'intensité moyenne calculé sur 1 seconde
+ * Sortie: Rien
+ * Fonction: Sauvegarder dans la flash les valeurs de la crise de l'utilisateur
+ */
+/*void Save_Spasm (int* intensity)
+{
+    //SPIFLASH_ProgramPage(G_Save_flash_spasm_index, intensity, 1);
+    //G_Save_flash_spasm_index -= 0x00000001;
+}*/

@@ -26,7 +26,7 @@ const int OFFSET_ADC = 0x200;
 const int RED = 0;
 const int GREEN = 1;
 const int ORANGE = 2;
-const int IDDLE = 1000;
+const int IDDLE = 10000;
 // ------------------------------------------------------------------------------
 
 

@@ -12,7 +12,10 @@
       <itemPath>config.h</itemPath>
       <itemPath>timer.h</itemPath>
       <itemPath>hardware.h</itemPath>
-      <itemPath>../../../../../OneDrive/Bureau/MX3_BSL.X/rgbled.h</itemPath>
+      <itemPath>rgbled.h</itemPath>
+      <itemPath>acl.h</itemPath>
+      <itemPath>i2c.h</itemPath>
+      <itemPath>led.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"
@@ -29,7 +32,10 @@
       <itemPath>utils.c</itemPath>
       <itemPath>PICmx370.c</itemPath>
       <itemPath>config_bits.c</itemPath>
-      <itemPath>../../../../../OneDrive/Bureau/MX3_BSL.X/rgbled.c</itemPath>
+      <itemPath>rgbled.c</itemPath>
+      <itemPath>acl.c</itemPath>
+      <itemPath>i2c.c</itemPath>
+      <itemPath>led.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -216,6 +222,7 @@
         <property key="ToolFirmwareFilePath"
                   value="Press to browse for a specific firmware version"/>
         <property key="ToolFirmwareOption.UseLatestFirmware" value="true"/>
+        <property key="firmware.download.all" value="false"/>
         <property key="memories.bootflash" value="true"/>
         <property key="memories.configurationmemory" value="true"/>
         <property key="memories.dataflash" value="true"/>

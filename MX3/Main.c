@@ -26,7 +26,7 @@ const int OFFSET_ADC = 0x200;
 const int RED = 0;
 const int GREEN = 1;
 const int ORANGE = 2;
-const int IDDLE = 1000;
+const int IDDLE = 10000;
 // ------------------------------------------------------------------------------
 
 
@@ -61,6 +61,16 @@ int G_read_table[100] = {0};
 
 static volatile int G_flag_1s = 0;
 static volatile int G_flag_05ms = 0;
+
+uint8_t accel_buffer[6];
+signed short accelX, accelY, accelZ;
+signed short accelX_buffer[200];
+signed short accelY_buffer[200];
+signed short accelZ_buffer[200];
+int accel_count = 0;
+int spasm_count = 0;
+int flag_spasm_avant = 0;
+
 // -----------------------------------------------------------------------------
 
 
@@ -110,12 +120,17 @@ int Intensity (int emg_rect)
         G_read_table_index = 0;
         // Envoie au python et a Zybo
     }
-    if (G_read_sum <= IDDLE)
-        Set_Led_Color(ORANGE);
-    else if (G_read_sum > IDDLE)
-        Set_Led_Color(GREEN);
-    else
+    if(flag_spasm_avant == 0 && G_flag_spasm == 0){
+        if (G_read_sum <= IDDLE){
+            Set_Led_Color(ORANGE);}
+        else if (G_read_sum > IDDLE){
+            Set_Led_Color(GREEN);}
+        else{
+            Set_Led_Color(RED);}
+    }
+    else{
         Set_Led_Color(RED);
+    }
 }
 
 void Display_Value_LCD (int value, int state)
@@ -223,10 +238,54 @@ void __ISR(_TIMER_1_VECTOR, IPL2SOFT) Timer1Handler(void)
     }
     mT1ClearIntFlag();	// Macro function to clear the interrupt flag
 }
-// -----------------------------------------------------------------------------
+
+// Detection crise et lecture de l'accelerometre-----------------------------------------------------------------------------
+
+void Read_Accel()
+{
+    ACL_ReadRawValues(accel_buffer);
+    accelX = (((signed int) accel_buffer[0])<<24)>>16 | accel_buffer[1]; //VR
+    accelY = (((signed int) accel_buffer[2])<<24)>>16 | accel_buffer[3]; //VR
+    accelZ = (((signed int) accel_buffer[4])<<24)>>16 | accel_buffer[5]; //VR 
+    accelX_buffer[accel_count] = abs(accelX);
+    accelY_buffer[accel_count] = abs(accelY);
+    accelZ_buffer[accel_count] = abs(accelZ);
+    accel_count++;
+    if(accel_count >= 200){         //Appel de Detection_Spasm lorsque 200 echantillons sont recoltes 
+        accel_count = 0;
+        Dectection_Spasm();
+    }
+
+}
 
 
-
+void Dectection_Spasm()
+{
+    LED_SetValue(0,0);      //Led 0 off
+    LED_SetValue(1,0);      //
+    LED_SetValue(2,0);      //
+    LED_SetValue(3,0);      //      Aucune
+    LED_SetValue(4,0);      //      crise
+    LED_SetValue(5,0);      //
+    LED_SetValue(6,0);      //
+    LED_SetValue(7,0);      //Led 7 off
+    
+    int sommeX = 0;         //Somme de l'axe X sur 200 echantillons par 100 ms
+    int sommeY = 0;
+    int sommeZ = 0;
+    int moy = 0;            //Moyenne de la somme des 3 axes (Intensite)
+    for(accel_count=0; accel_count<200; accel_count++){
+        sommeX += accelX_buffer[accel_count];
+        sommeY += accelY_buffer[accel_count];
+        sommeZ += accelZ_buffer[accel_count];
+    }
+    moy = (sommeX+sommeY+sommeZ)/200;
+    accel_count = 0;
+    if(moy > 40000 ){
+        G_flag_spasm = 1;  
+    }
+    flag_spasm_avant = G_flag_spasm;
+}
 
 
 // INITIALISATION --------------------------------------------------------------
@@ -234,7 +293,9 @@ void Init()
 {
     //SPIFLASH_Init();
     //UART_Init(9600);
+    ACL_Init();
     LCD_Init();
+    LED_Init();
     ADC_Init();
     RGBLED_Init();
     initialize_01ms_interrupt();
@@ -256,6 +317,7 @@ int main()
             G_flag_05ms = 0;
             rectified_adc_read = Rectifier(Read());
             Intensity(rectified_adc_read);
+            Read_Accel();
             if (G_flag_1s == 1){
                 G_flag_1s = 0;
                 LCD_DisplayClear();
@@ -264,6 +326,17 @@ int main()
                 sprintf(data_affichage, "Somme: %d", G_read_sum);
                 LCD_WriteStringAtPos(data_affichage, 1, 0);
             }
+        }
+        if(G_flag_spasm == 1){
+            G_flag_spasm = 0;
+            LED_SetValue(0,1);
+            LED_SetValue(1,1);
+            LED_SetValue(2,1);
+            LED_SetValue(3,1);
+            LED_SetValue(4,1);
+            LED_SetValue(5,1);
+            LED_SetValue(6,1);
+            LED_SetValue(7,1);
         }
     }
 }
